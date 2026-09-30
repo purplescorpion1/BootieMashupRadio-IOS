@@ -16,7 +16,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build iOS Application
+      # --- 1. iOS Simulator Build (For Online Browser Testers like Appetize.io) ---
+      - name: Build iOS Simulator Application
+        run: |
+          xcodebuild build \
+            -project BootieMashupRadio.xcodeproj \
+            -scheme BootieMashupRadio \
+            -sdk iphonesimulator \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR=build
+
+      - name: Package iOS Simulator App into ZIP (Appetize.io / Online Testers)
+        run: |
+          cd build/Release-iphonesimulator && zip -r ../BootieMashupRadio-iOS-Simulator.zip "Bootie Mashup Radio.app"
+
+      # --- 2. iOS Device Build (For Sideloading / Physical Devices) ---
+      - name: Build iOS Device Application
         run: |
           xcodebuild build \
             -project BootieMashupRadio.xcodeproj \
@@ -28,7 +46,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             BUILD_DIR=build
 
-      - name: Build tvOS Application
+      - name: Package iOS Device App into IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r "build/Release-iphoneos/Bootie Mashup Radio.app" build/Payload/
+          cd build && zip -r BootieMashupRadio-iOS-Device.ipa Payload
+
+      # --- 3. tvOS Simulator Build ---
+      - name: Build tvOS Simulator Application
+        run: |
+          xcodebuild build \
+            -project BootieMashupRadio.xcodeproj \
+            -scheme BootieMashupRadioTV \
+            -sdk appletvsimulator \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR=build
+
+      - name: Package tvOS Simulator App
+        run: |
+          cd build/Release-appletvsimulator && zip -r ../BootieMashupRadio-tvOS-Simulator.zip "Bootie Mashup Radio TV.app"
+
+      # --- 4. tvOS Device Build ---
+      - name: Build tvOS Device Application
         run: |
           xcodebuild build \
             -project BootieMashupRadio.xcodeproj \
@@ -40,24 +82,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             BUILD_DIR=build
 
-      - name: Package iOS App into IPA
+      - name: Package tvOS Device App
         run: |
-          mkdir -p build/Payload
-          cp -r "build/Release-iphoneos/Bootie Mashup Radio.app" build/Payload/
-          cd build && zip -r BootieMashupRadio-iOS.ipa Payload
+          cd build/Release-appletvos && zip -r BootieMashupRadio-tvOS-Device.zip "Bootie Mashup Radio TV.app"
 
-      - name: Package tvOS App
-        run: |
-          cd build/Release-appletvos && zip -r BootieMashupRadio-tvOS.zip "Bootie Mashup Radio TV.app"
-
-      - name: Upload iOS App Artifact
+      # --- Upload Artifacts ---
+      - name: Upload iOS Simulator App (Appetize.io / Online Testers)
         uses: actions/upload-artifact@v4
         with:
-          name: BootieMashupRadio-iOS-IPA
-          path: build/BootieMashupRadio-iOS.ipa
+          name: BootieMashupRadio-iOS-Simulator-ZIP
+          path: build/BootieMashupRadio-iOS-Simulator.zip
 
-      - name: Upload tvOS App Artifact
+      - name: Upload iOS Device IPA (Sideloading / AltStore / Sideloadly)
         uses: actions/upload-artifact@v4
         with:
-          name: BootieMashupRadio-tvOS-ZIP
-          path: build/Release-appletvos/BootieMashupRadio-tvOS.zip
+          name: BootieMashupRadio-iOS-Device-IPA
+          path: build/BootieMashupRadio-iOS-Device.ipa
+
+      - name: Upload tvOS Simulator App
+        uses: actions/upload-artifact@v4
+        with:
+          name: BootieMashupRadio-tvOS-Simulator-ZIP
+          path: build/BootieMashupRadio-tvOS-Simulator.zip
+
+      - name: Upload tvOS Device App
+        uses: actions/upload-artifact@v4
+        with:
+          name: BootieMashupRadio-tvOS-Device-ZIP
+          path: build/Release-appletvos/BootieMashupRadio-tvOS-Device.zip
