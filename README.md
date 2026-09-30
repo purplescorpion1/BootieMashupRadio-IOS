@@ -27,11 +27,11 @@ Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming 
 
 ## Installation Guide
 
-### Option 1: Download Pre-built App via GitHub Actions (Recommended)
+### Option 1: Download Pre-built App (Recommended)
 
-1. Go to the **Actions** tab on this GitHub repository.
-2. Click on the latest workflow run under **Build iOS & tvOS App**.
-3. Scroll down to the **Artifacts** section:
+1. Go to the **Release** section on this GitHub repository.
+2. Scroll down to assets.
+3. Download the appropriate file :
    - Download `BootieMashupRadio-iOS-IPA` for iOS devices.
    - Download `BootieMashupRadio-tvOS-ZIP` for Apple TV devices.
 4. Install the IPA on your iPhone or Apple TV using your preferred sideloading method:
