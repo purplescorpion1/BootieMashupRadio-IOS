@@ -29,7 +29,7 @@ Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming 
 
 ### Option 1: Download Pre-built App (Recommended)
 
-1. Go to the **Release** section on this GitHub repository.
+1. Go to the **Releases** section on this GitHub repository.
 2. Scroll down to assets.
 3. Download the appropriate file :
    - Download `BootieMashupRadio-iOS-IPA` for iOS devices.
