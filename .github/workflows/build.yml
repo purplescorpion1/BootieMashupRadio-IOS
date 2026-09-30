@@ -1,0 +1,66 @@
+name: Build iOS & tvOS App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Bootie Mashup Radio (iOS & tvOS)
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_14.3.1.app/Contents/Developer || true
+
+      - name: Build iOS Application
+        run: |
+          xcodebuild build \
+            -project BootieMashupRadio.xcodeproj \
+            -scheme BootieMashupRadio \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR=build
+
+      - name: Build tvOS Application
+        run: |
+          xcodebuild build \
+            -project BootieMashupRadio.xcodeproj \
+            -scheme BootieMashupRadioTV \
+            -sdk appletvos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR=build
+
+      - name: Package iOS App into IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r "build/Release-iphoneos/Bootie Mashup Radio.app" build/Payload/
+          cd build && zip -r BootieMashupRadio-iOS.ipa Payload
+
+      - name: Package tvOS App
+        run: |
+          cd build/Release-appletvos && zip -r BootieMashupRadio-tvOS.zip "Bootie Mashup Radio TV.app"
+
+      - name: Upload iOS App Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: BootieMashupRadio-iOS-IPA
+          path: build/BootieMashupRadio-iOS.ipa
+
+      - name: Upload tvOS App Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: BootieMashupRadio-tvOS-ZIP
+          path: build/Release-appletvos/BootieMashupRadio-tvOS.zip
