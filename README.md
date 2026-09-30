@@ -25,23 +25,40 @@ Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming 
 
 ---
 
-## Installation Guide
+## Testing & Installation Guide
 
-### Option 1: Download Pre-built App (Recommended)
+The GitHub Actions workflow automatically generates two types of build artifacts:
 
-1. Go to the **Releases** section on this GitHub repository.
-2. Scroll down to assets.
-3. Download the appropriate file :
-   - Download `BootieMashupRadio-iOS-IPA` for iOS devices.
-   - Download `BootieMashupRadio-tvOS-ZIP` for Apple TV devices.
-4. Install the IPA on your iPhone or Apple TV using your preferred sideloading method:
-   - **AltStore / AltServer**: [altstore.io](https://altstore.io)
-   - **Sideloadly**: [sideloadly.io](https://sideloadly.io)
-   - **TrollStore** (if supported on your iOS version)
+1. **Simulator Builds (`.zip`)**: Built for x86_64 / arm64 architecture, specifically designed for testing in online browser services (like [Appetize.io](https://appetize.io)) or Xcode iOS Simulator.
+2. **Device Builds (`.ipa`)**: Built for physical iPhone & iPad hardware, ready for sideloading.
 
 ---
 
-### Option 2: Build from Source with Xcode
+### Option 1: Test Directly in Your Web Browser (Appetize.io) — No iPhone Required!
+
+If you don't have an iPhone or want to test the app instantly in your web browser:
+
+1. Go to the **Actions** tab in this GitHub repository and select the latest workflow run.
+2. Download **`BootieMashupRadio-iOS-Simulator-ZIP`** from the **Artifacts** section.
+3. Visit **[Appetize.io Upload](https://appetize.io/upload)** in your web browser.
+4. Upload `BootieMashupRadio-iOS-Simulator.zip`.
+5. Appetize.io will render a fully interactive iPhone in your browser where you can click buttons, test audio playback, and view the live UI!
+
+---
+
+### Option 2: Install on a Physical iPhone / iPad (Device IPA)
+
+1. Go to the **Actions** tab on this GitHub repository.
+2. Select the latest workflow run and download **`BootieMashupRadio-iOS-Device-IPA`**.
+3. Unzip the downloaded artifact to extract `BootieMashupRadio-iOS-Device.ipa`.
+4. Install the `.ipa` onto your iPhone or iPad using your preferred sideloading method:
+   - **[Sideloadly](https://sideloadly.io)** (Mac & Windows): Connect your device via USB, select your Apple ID, drag `BootieMashupRadio-iOS-Device.ipa` in, and click **Start**.
+   - **[AltStore](https://altstore.io)**: Import `BootieMashupRadio-iOS-Device.ipa` into AltStore on your device.
+   - **[TrollStore]** (if supported on your iOS version).
+
+---
+
+### Option 3: Build from Source with Xcode
 
 #### Prerequisites
 - A Mac running macOS 12 or later
@@ -64,8 +81,7 @@ Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming 
 4. In Xcode, go to **Signing & Capabilities** under target settings:
    - Check **Automatically manage signing**.
    - Select your personal or developer Apple ID Team.
-5. Connect your iPhone or Apple TV via USB / Network.
-6. Select your connected device as the destination target and click **Run** (or `Cmd + R`) to compile and install.
+5. Connect your device or choose an iOS Simulator, then click **Run** (`Cmd + R`).
 
 ---
 
