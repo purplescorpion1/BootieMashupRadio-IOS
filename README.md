@@ -34,31 +34,17 @@ The GitHub Actions workflow automatically generates two types of build artifacts
 
 ---
 
-### Option 1: Test Directly in Your Web Browser (Appetize.io) — No iPhone Required!
+### Option 1: Install on a Physical iPhone / iPad (Device IPA)
 
-If you don't have an iPhone or want to test the app instantly in your web browser:
-
-1. Go to the **Actions** tab in this GitHub repository and select the latest workflow run.
-2. Download **`BootieMashupRadio-iOS-Simulator-ZIP`** from the **Artifacts** section.
-3. Visit **[Appetize.io Upload](https://appetize.io/upload)** in your web browser.
-4. Upload `BootieMashupRadio-iOS-Simulator.zip`.
-5. Appetize.io will render a fully interactive iPhone in your browser where you can click buttons, test audio playback, and view the live UI!
-
----
-
-### Option 2: Install on a Physical iPhone / iPad (Device IPA)
-
-1. Go to the **Actions** tab on this GitHub repository.
-2. Select the latest workflow run and download **`BootieMashupRadio-iOS-Device-IPA`**.
-3. Unzip the downloaded artifact to extract `BootieMashupRadio-iOS-Device.ipa`.
-4. Install the `.ipa` onto your iPhone or iPad using your preferred sideloading method:
+1. Go to the **Releases** tab on this GitHub repository.
+2. Install the `.ipa` onto your iPhone or iPad using your preferred sideloading method:
    - **[Sideloadly](https://sideloadly.io)** (Mac & Windows): Connect your device via USB, select your Apple ID, drag `BootieMashupRadio-iOS-Device.ipa` in, and click **Start**.
    - **[AltStore](https://altstore.io)**: Import `BootieMashupRadio-iOS-Device.ipa` into AltStore on your device.
    - **[TrollStore]** (if supported on your iOS version).
 
 ---
 
-### Option 3: Build from Source with Xcode
+### Option 2: Build from Source with Xcode
 
 #### Prerequisites
 - A Mac running macOS 12 or later
