@@ -129,7 +129,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            audioManager.startMetadataPolling()
+            audioManager.play()
         }
     }
 }
