@@ -25,7 +25,6 @@ public final class AudioPlayerManager: ObservableObject {
     private var pollingTimer: Timer?
     private var lastNowPlaying: String = ""
     private var lastNextTrack: String = ""
-    private var timeObserverToken: Any?
 
     private init() {
         configureAudioSession()
@@ -36,7 +35,7 @@ public final class AudioPlayerManager: ObservableObject {
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
+            try session.setActive(true, options: [])
         } catch {
             print("Failed to configure AVAudioSession: \(error.localizedDescription)")
         }
@@ -65,6 +64,7 @@ public final class AudioPlayerManager: ObservableObject {
     }
 
     public func play() {
+        configureAudioSession()
         if player == nil {
             setupPlayer(with: currentStreamURL)
         }
@@ -110,7 +110,6 @@ public final class AudioPlayerManager: ObservableObject {
         if currentStreamURL == AudioPlayerManager.primaryStreamURL {
             switchToFallbackStream()
         } else {
-            // Retry primary after stall on fallback
             currentStreamURL = AudioPlayerManager.primaryStreamURL
             setupPlayer(with: currentStreamURL)
             if isPlaying {
