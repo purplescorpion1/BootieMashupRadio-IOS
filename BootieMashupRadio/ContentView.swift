@@ -4,11 +4,15 @@ import AVKit
 import UIKit
 #endif
 
+/// Audio-only AirPlay picker. `prioritizesVideoDevices = false` plus
+/// `AVPlayer.allowsExternalPlayback = false` keeps AirPlay on the audio route
+/// so Now Playing stays on the iPhone (and therefore on Apple Watch).
 struct AirPlayView: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
         picker.activeTintColor = .systemBlue
         picker.tintColor = .white
+        picker.prioritizesVideoDevices = false
         return picker
     }
 
@@ -21,7 +25,6 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // App Background Image
                 Image("background")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -29,15 +32,12 @@ struct ContentView: View {
                     .clipped()
                     .ignoresSafeArea()
 
-                // Semitransparent overlay (#40000000)
                 Color.black.opacity(0.25)
                     .ignoresSafeArea()
 
-                // Main Content Layout
                 VStack(spacing: 0) {
                     Spacer(minLength: 12)
 
-                    // Album Artwork Container
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.black)
@@ -63,7 +63,6 @@ struct ContentView: View {
                     )
                     .padding(.bottom, 12)
 
-                    // Dynamic Now Playing Text
                     Text("NOW PLAYING")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.8))
@@ -80,7 +79,6 @@ struct ContentView: View {
                         .padding(.horizontal, 24)
                         .padding(.bottom, 12)
 
-                    // Dynamic Next Playing Text
                     if !audioManager.nextTrackTitle.isEmpty {
                         Text("COMING NEXT")
                             .font(.system(size: 13, weight: .bold))
@@ -101,12 +99,8 @@ struct ContentView: View {
 
                     Spacer(minLength: 12)
 
-                    // Control Buttons Container
                     HStack(spacing: 32) {
-                        // Mute/Unmute Button
-                        Button(action: {
-                            audioManager.toggleMute()
-                        }) {
+                        Button(action: { audioManager.toggleMute() }) {
                             Image(systemName: audioManager.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundColor(.white)
@@ -114,10 +108,7 @@ struct ContentView: View {
                         }
                         .accessibilityLabel(audioManager.isMuted ? "Unmute Audio" : "Mute Audio")
 
-                        // Play/Pause Button
-                        Button(action: {
-                            audioManager.togglePlayPause()
-                        }) {
+                        Button(action: { audioManager.togglePlayPause() }) {
                             Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 32, weight: .bold))
                                 .foregroundColor(.white)
@@ -125,9 +116,9 @@ struct ContentView: View {
                         }
                         .accessibilityLabel(audioManager.isPlaying ? "Pause" : "Play")
 
-                        // AirPlay / Remote Route Button
                         AirPlayView()
                             .frame(width: 48, height: 48)
+                            .accessibilityLabel("AirPlay")
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 8)
