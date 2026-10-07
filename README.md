@@ -10,11 +10,11 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 ### Screenshots
 
 <h3>Screenshots</h3>
-<p>Android Mobile</p>
-<img src="[https://github.com/purplescorpion1/Bootie-Mashup-Radio/Preview/BM_Radio_V2.0_Mobile.jpg](https://github.com/purplescorpion1/Bootie-Mashup-Radio/blob/main/Preview/BM_Radio_2.0_TV.png?raw=true)" alt="drawing" width="200"/>
+<p>Phone</p>
+<img src="/Preview/BM_Radio_V2.0_Mobile.jpg" alt="drawing" width="200"/>
 
-<p>Android TV</p>
-<img src="[https://github.com/purplescorpion1/Bootie-Mashup-Radio/Preview/BM_Radio_2.0_TV.png](https://github.com/purplescorpion1/Bootie-Mashup-Radio/blob/main/Preview/BM_Radio_2.0_TV.png?raw=true)" alt="drawing" width="500"/>
+<p>TV</p>
+<img src="/Preview/BM_Radio_2.0_TV.png" alt="drawing" width="500"/>
 
 ## Features
 
