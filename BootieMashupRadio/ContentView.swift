@@ -32,7 +32,7 @@ struct ContentView: View {
 
                 // Main Content Layout
                 VStack(spacing: 0) {
-                    Spacer(minLength: 20)
+                    Spacer(minLength: 12)
 
                     // Album Artwork Container
                     ZStack {
@@ -53,46 +53,49 @@ struct ContentView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                     }
-                    .frame(width: 180, height: 180)
-                    .padding(.bottom, 20)
+                    .frame(
+                        width: min(geometry.size.width * 0.45, 180),
+                        height: min(geometry.size.width * 0.45, 180)
+                    )
+                    .padding(.bottom, 12)
 
                     // Dynamic Now Playing Text
                     Text("NOW PLAYING")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white.opacity(0.8))
                         .tracking(1.5)
                         .shadow(color: .black.opacity(0.8), radius: 3, x: 1, y: 1)
-                        .padding(.bottom, 4)
+                        .padding(.bottom, 2)
 
                     Text(audioManager.trackTitle)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 2)
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 12)
 
                     // Dynamic Next Playing Text
                     if !audioManager.nextTrackTitle.isEmpty {
                         Text("COMING NEXT")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white.opacity(0.8))
                             .tracking(1.5)
                             .shadow(color: .black.opacity(0.8), radius: 3, x: 1, y: 1)
-                            .padding(.bottom, 4)
+                            .padding(.bottom, 2)
 
                         Text(audioManager.nextTrackTitle)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 2)
                             .padding(.horizontal, 24)
-                            .padding(.bottom, 24)
+                            .padding(.bottom, 12)
                     }
 
-                    Spacer(minLength: 20)
+                    Spacer(minLength: 12)
 
                     // Control Buttons Container
                     HStack(spacing: 32) {
@@ -123,8 +126,9 @@ struct ContentView: View {
                             .frame(width: 48, height: 48)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .padding(.bottom, 24)
+                    .padding(.vertical, 8)
+
+                    Spacer(minLength: 12)
                 }
             }
         }
