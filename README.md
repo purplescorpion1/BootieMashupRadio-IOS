@@ -37,7 +37,7 @@ The GitHub Actions workflow automatically generates two types of build artifacts
 
 ---
 
-### Option 1: Install on a Physical iPhone / iPad (Device IPA)
+### Option 1: Install on a Physical iPhone / iPad / AppleTV (Device IPA)
 
 1. Go to the **Releases** tab on this GitHub repository.
 2. Install the `.ipa` onto your iPhone or iPad or Apple TV using your preferred sideloading method:
