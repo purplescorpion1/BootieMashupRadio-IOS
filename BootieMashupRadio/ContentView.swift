@@ -1,5 +1,8 @@
 import SwiftUI
 import AVKit
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct AirPlayView: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
@@ -134,6 +137,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            #if canImport(UIKit)
+            UIApplication.shared.beginReceivingRemoteControlEvents()
+            #endif
             audioManager.play()
         }
     }
