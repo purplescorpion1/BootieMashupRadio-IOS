@@ -52,6 +52,8 @@ If you have an Apple TV with a USB port, simply plug it in to your computer and 
 <br>
 For macOS to see your Apple TV, open Settings > Remotes & Devices > Remote App & Devices and keep it on that screen so Sideloadly will detect your Apple TV. <br>
 
+---
+
 ### Option 2: Build from Source with Xcode
 
 #### Prerequisites
