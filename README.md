@@ -9,7 +9,6 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 
 ### Screenshots
 
-<h3>Screenshots</h3>
 <p>Phone</p>
 <img src="/Preview/BM_Radio_V2.0_Mobile.jpg" alt="drawing" width="200"/>
 
