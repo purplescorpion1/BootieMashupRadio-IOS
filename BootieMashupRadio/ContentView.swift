@@ -46,10 +46,11 @@ struct ContentView: View {
                                 .aspectRatio(contentMode: .fill)
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                         } else {
-                            Image("banner320")
+                            Image(systemName: "radio")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .padding(12)
+                                .foregroundColor(.white.opacity(0.6))
+                                .padding(32)
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                     }
