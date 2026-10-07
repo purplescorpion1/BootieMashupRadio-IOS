@@ -14,9 +14,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
-      # --- 1. iOS Simulator Build (For Online Browser Testers like Appetize.io) ---
+      # --- 1. iOS Simulator Build ---
       - name: Build iOS Simulator Application
         run: |
           xcodebuild build \
@@ -29,11 +29,11 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             BUILD_DIR=build
 
-      - name: Package iOS Simulator App into ZIP (Appetize.io / Online Testers)
+      - name: Package iOS Simulator App into ZIP
         run: |
           cd build/Release-iphonesimulator && zip -r ../BootieMashupRadio-iOS-Simulator.zip "Bootie Mashup Radio.app"
 
-      # --- 2. iOS Device Build (For Sideloading / Physical Devices) ---
+      # --- 2. iOS Device Build ---
       - name: Build iOS Device Application
         run: |
           xcodebuild build \
@@ -65,7 +65,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             BUILD_DIR=build
 
-      - name: Package tvOS Simulator App
+      - name: Package tvOS Simulator App into ZIP
         run: |
           cd build/Release-appletvsimulator && zip -r ../BootieMashupRadio-tvOS-Simulator.zip "Bootie Mashup Radio TV.app"
 
@@ -82,31 +82,33 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             BUILD_DIR=build
 
-      - name: Package tvOS Device App
+      - name: Package tvOS Device App into IPA
         run: |
-          cd build/Release-appletvos && zip -r BootieMashupRadio-tvOS-Device.zip "Bootie Mashup Radio TV.app"
+          mkdir -p build/PayloadTV
+          cp -r "build/Release-appletvos/Bootie Mashup Radio TV.app" build/PayloadTV/Payload
+          cd build/PayloadTV && zip -r ../BootieMashupRadio-tvOS-Device.ipa Payload
 
       # --- Upload Artifacts ---
-      - name: Upload iOS Simulator App (Appetize.io / Online Testers)
-        uses: actions/upload-artifact@v4
+      - name: Upload iOS Simulator App (.zip)
+        uses: actions/upload-artifact@v4.4.3
         with:
-          name: BootieMashupRadio-iOS-Simulator-ZIP
+          name: BootieMashupRadio-iOS-Simulator
           path: build/BootieMashupRadio-iOS-Simulator.zip
 
-      - name: Upload iOS Device IPA (Sideloading / AltStore / Sideloadly)
-        uses: actions/upload-artifact@v4
+      - name: Upload iOS Device App (.ipa)
+        uses: actions/upload-artifact@v4.4.3
         with:
-          name: BootieMashupRadio-iOS-Device-IPA
+          name: BootieMashupRadio-iOS-Device
           path: build/BootieMashupRadio-iOS-Device.ipa
 
-      - name: Upload tvOS Simulator App
-        uses: actions/upload-artifact@v4
+      - name: Upload tvOS Simulator App (.zip)
+        uses: actions/upload-artifact@v4.4.3
         with:
-          name: BootieMashupRadio-tvOS-Simulator-ZIP
+          name: BootieMashupRadio-tvOS-Simulator
           path: build/BootieMashupRadio-tvOS-Simulator.zip
 
-      - name: Upload tvOS Device App
-        uses: actions/upload-artifact@v4
+      - name: Upload tvOS Device App (.ipa)
+        uses: actions/upload-artifact@v4.4.3
         with:
-          name: BootieMashupRadio-tvOS-Device-ZIP
-          path: build/Release-appletvos/BootieMashupRadio-tvOS-Device.zip
+          name: BootieMashupRadio-tvOS-Device
+          path: build/BootieMashupRadio-tvOS-Device.ipa

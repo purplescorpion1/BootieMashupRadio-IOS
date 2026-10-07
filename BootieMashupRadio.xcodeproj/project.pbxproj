@@ -320,7 +320,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bootiemashup.radio;
 				PRODUCT_NAME = "Bootie Mashup Radio";
 				SDKROOT = iphoneos;
@@ -348,7 +348,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bootiemashup.radio;
 				PRODUCT_NAME = "Bootie Mashup Radio";
 				SDKROOT = iphoneos;
@@ -371,7 +371,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bootiemashup.radiotv;
 				PRODUCT_NAME = "Bootie Mashup Radio TV";
 				SDKROOT = appletvos;
@@ -395,7 +395,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bootiemashup.radiotv;
 				PRODUCT_NAME = "Bootie Mashup Radio TV";
 				SDKROOT = appletvos;
