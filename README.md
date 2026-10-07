@@ -1,6 +1,6 @@
 # Bootie Mashup Radio - iOS & tvOS
 
-Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming the best mashups 24/7.
+Native iOS and tvOS application for **Bootie Mashup Radio**, streaming the best mashups 24/7.
 
 ## Android version
 The android version can be found https://github.com/purplescorpion1/Bootie-Mashup-Radio
