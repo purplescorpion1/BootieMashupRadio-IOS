@@ -11,7 +11,7 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 
 ## Features
 
-- 🎧 **24/7 High Quality Audio Streaming**: Automatic primary stream connection (`https://c7.radioboss.fm/stream/205`) with automatic seamless failover to secondary stream if needed.
+- 🎧 **24/7 High Quality Audio Streaming**: Automatic primary stream connection with automatic seamless failover to secondary stream if needed.
 - 📺 **iOS & tvOS Support**: Full support for iPhone, iPad, and Apple TV (tvOS 15.0+).
 - 📻 **Live Now Playing & Coming Next Info**: Automatic metadata updates for current track, artist, and coming next track every 5 seconds.
 - 🖼️ **Album Artwork Integration**: Real-time album artwork updates fetched directly from the stream feed with smooth fallback graphics.
