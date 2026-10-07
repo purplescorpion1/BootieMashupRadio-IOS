@@ -40,12 +40,17 @@ The GitHub Actions workflow automatically generates two types of build artifacts
 ### Option 1: Install on a Physical iPhone / iPad (Device IPA)
 
 1. Go to the **Releases** tab on this GitHub repository.
-2. Install the `.ipa` onto your iPhone or iPad using your preferred sideloading method:
-   - **[Sideloadly](https://sideloadly.io)** (Mac & Windows): Connect your device via USB, select your Apple ID, drag `BootieMashupRadio-iOS-Device.ipa` in, and click **Start**.
-   - **[AltStore](https://altstore.io)**: Import `BootieMashupRadio-iOS-Device.ipa` into AltStore on your device.
+2. Install the `.ipa` onto your iPhone or iPad or Apple TV using your preferred sideloading method:
+   - **[Sideloadly](https://sideloadly.io)** (Mac & Windows): Connect your device via USB, select your Apple ID, drag in `BootieMashupRadio-iOS-Device.ipa` or `BootieMashupRadio-tvOS-Device.ipa`, and click **Start**.
+   - **[AltStore](https://altstore.io)**: Import `BootieMashupRadio-iOS-Device.ipa` or `BootieMashupRadio-tvOS-Device.ipa` into AltStore on your device.
    - **[TrollStore]** (if supported on your iOS version).
 
 ---
+
+### tvOS instructions for sideloady
+If you have an Apple TV with a USB port, simply plug it in to your computer and Sideloadly will detect it. If you have a portless Apple TV, sideloading will only work on macOS. A virtual macOS should also work as long as you are on the same network. <br>
+<br>
+For macOS to see your Apple TV, open Settings > Remotes & Devices > Remote App & Devices and keep it on that screen so Sideloadly will detect your Apple TV. <br>
 
 ### Option 2: Build from Source with Xcode
 
