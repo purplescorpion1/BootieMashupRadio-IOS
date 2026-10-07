@@ -4,6 +4,9 @@ Official native iOS and tvOS application for **Bootie Mashup Radio**, streaming 
 
 ![Bootie Mashup Radio](BootieMashupRadio/Assets.xcassets/banner320.imageset/banner320.png)
 
+## Android version
+The android version can be found https://github.com/purplescorpion1/Bootie-Mashup-Radio
+
 ---
 
 ## Features
