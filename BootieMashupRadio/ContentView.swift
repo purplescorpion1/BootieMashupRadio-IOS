@@ -1,123 +1,274 @@
 import SwiftUI
 import AVKit
+
 #if canImport(UIKit)
 import UIKit
 #endif
 
-/// Audio-only AirPlay picker. `prioritizesVideoDevices = false` plus
-/// `AVPlayer.allowsExternalPlayback = false` keeps AirPlay on the audio route
-/// so Now Playing stays on the iPhone (and therefore on Apple Watch).
+/// Audio-only AirPlay picker.
+///
+/// The player deliberately keeps external video playback disabled so that
+/// AirPlay is treated as an audio route and the iPhone remains the Now Playing
+/// source. This allows the iPhone's Now Playing information to remain
+/// available to Apple Watch.
 struct AirPlayView: UIViewRepresentable {
+
     func makeUIView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
+
         picker.activeTintColor = .systemBlue
         picker.tintColor = .white
+
+        // Prefer audio devices rather than video devices.
         picker.prioritizesVideoDevices = false
+
         return picker
     }
 
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+    func updateUIView(
+        _ uiView: AVRoutePickerView,
+        context: Context
+    ) {
+    }
 }
 
 struct ContentView: View {
-    @StateObject private var audioManager = AudioPlayerManager.shared
+
+    @StateObject private var audioManager =
+        AudioPlayerManager.shared
 
     var body: some View {
+
         GeometryReader { geometry in
+
             ZStack {
+
                 Image("background")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
                     .clipped()
                     .ignoresSafeArea()
 
-                Color.black.opacity(0.25)
+                Color.black
+                    .opacity(0.25)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
+
                     Spacer(minLength: 12)
 
+                    // MARK: Artwork
+
                     ZStack {
+
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.black)
-                            .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
+                            .shadow(
+                                color: Color.black.opacity(0.5),
+                                radius: 8,
+                                x: 0,
+                                y: 4
+                            )
 
                         if let artwork = audioManager.artworkImage {
+
                             Image(uiImage: artwork)
                                 .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .aspectRatio(
+                                    contentMode: .fill
+                                )
+                                .clipShape(
+                                    RoundedRectangle(
+                                        cornerRadius: 16
+                                    )
+                                )
+
                         } else {
+
                             Image(systemName: "radio")
                                 .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .foregroundColor(.white.opacity(0.6))
+                                .aspectRatio(
+                                    contentMode: .fit
+                                )
+                                .foregroundColor(
+                                    .white.opacity(0.6)
+                                )
                                 .padding(32)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .clipShape(
+                                    RoundedRectangle(
+                                        cornerRadius: 16
+                                    )
+                                )
                         }
                     }
                     .frame(
-                        width: min(geometry.size.width * 0.45, 180),
-                        height: min(geometry.size.width * 0.45, 180)
+                        width: min(
+                            geometry.size.width * 0.45,
+                            180
+                        ),
+                        height: min(
+                            geometry.size.width * 0.45,
+                            180
+                        )
                     )
                     .padding(.bottom, 12)
 
+                    // MARK: Now Playing label
+
                     Text("NOW PLAYING")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(
+                            .system(
+                                size: 13,
+                                weight: .bold
+                            )
+                        )
+                        .foregroundColor(
+                            .white.opacity(0.8)
+                        )
                         .tracking(1.5)
-                        .shadow(color: .black.opacity(0.8), radius: 3, x: 1, y: 1)
+                        .shadow(
+                            color: .black.opacity(0.8),
+                            radius: 3,
+                            x: 1,
+                            y: 1
+                        )
                         .padding(.bottom, 2)
 
+                    // This remains the combined display text used by
+                    // the iPhone UI.
                     Text(audioManager.trackTitle)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(
+                            .system(
+                                size: 18,
+                                weight: .bold
+                            )
+                        )
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
-                        .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 2)
+                        .shadow(
+                            color: .black.opacity(0.8),
+                            radius: 4,
+                            x: 2,
+                            y: 2
+                        )
                         .padding(.horizontal, 24)
                         .padding(.bottom, 12)
 
+                    // MARK: Coming next
+
                     if !audioManager.nextTrackTitle.isEmpty {
+
                         Text("COMING NEXT")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white.opacity(0.8))
+                            .font(
+                                .system(
+                                    size: 13,
+                                    weight: .bold
+                                )
+                            )
+                            .foregroundColor(
+                                .white.opacity(0.8)
+                            )
                             .tracking(1.5)
-                            .shadow(color: .black.opacity(0.8), radius: 3, x: 1, y: 1)
+                            .shadow(
+                                color: .black.opacity(0.8),
+                                radius: 3,
+                                x: 1,
+                                y: 1
+                            )
                             .padding(.bottom, 2)
 
                         Text(audioManager.nextTrackTitle)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(
+                                .system(
+                                    size: 15,
+                                    weight: .semibold
+                                )
+                            )
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                            .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 2)
+                            .shadow(
+                                color: .black.opacity(0.8),
+                                radius: 4,
+                                x: 2,
+                                y: 2
+                            )
                             .padding(.horizontal, 24)
                             .padding(.bottom, 12)
                     }
 
                     Spacer(minLength: 12)
 
-                    HStack(spacing: 32) {
-                        Button(action: { audioManager.toggleMute() }) {
-                            Image(systemName: audioManager.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 48, height: 48)
-                        }
-                        .accessibilityLabel(audioManager.isMuted ? "Unmute Audio" : "Mute Audio")
+                    // MARK: Playback controls
 
-                        Button(action: { audioManager.togglePlayPause() }) {
-                            Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 64, height: 64)
+                    HStack(spacing: 32) {
+
+                        Button {
+                            audioManager.toggleMute()
+                        } label: {
+
+                            Image(
+                                systemName:
+                                    audioManager.isMuted
+                                    ? "speaker.slash.fill"
+                                    : "speaker.wave.2.fill"
+                            )
+                            .font(
+                                .system(
+                                    size: 24,
+                                    weight: .semibold
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .frame(
+                                width: 48,
+                                height: 48
+                            )
                         }
-                        .accessibilityLabel(audioManager.isPlaying ? "Pause" : "Play")
+                        .accessibilityLabel(
+                            audioManager.isMuted
+                            ? "Unmute Audio"
+                            : "Mute Audio"
+                        )
+
+                        Button {
+                            audioManager.togglePlayPause()
+                        } label: {
+
+                            Image(
+                                systemName:
+                                    audioManager.isPlaying
+                                    ? "pause.fill"
+                                    : "play.fill"
+                            )
+                            .font(
+                                .system(
+                                    size: 32,
+                                    weight: .bold
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .frame(
+                                width: 64,
+                                height: 64
+                            )
+                        }
+                        .accessibilityLabel(
+                            audioManager.isPlaying
+                            ? "Pause"
+                            : "Play"
+                        )
 
                         AirPlayView()
-                            .frame(width: 48, height: 48)
+                            .frame(
+                                width: 48,
+                                height: 48
+                            )
                             .accessibilityLabel("AirPlay")
                     }
                     .padding(.horizontal, 24)
@@ -128,15 +279,19 @@ struct ContentView: View {
             }
         }
         .onAppear {
+
             #if canImport(UIKit)
-            UIApplication.shared.beginReceivingRemoteControlEvents()
+            UIApplication.shared
+                .beginReceivingRemoteControlEvents()
             #endif
+
             audioManager.play()
         }
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
+
     static var previews: some View {
         ContentView()
     }

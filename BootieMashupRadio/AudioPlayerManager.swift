@@ -202,8 +202,12 @@ public final class AudioPlayerManager: ObservableObject {
         player?.playImmediately(atRate: 1.0)
         isPlaying = true
         becomeNowPlayingApp()
-        publishNowPlaying()
+
+        // Start RadioBoss polling before the first Now Playing publication.
+        // fetchNow() runs immediately, then continues every 5 seconds.
         metadataHook.start()
+
+        publishNowPlaying()
     }
 
     public func pause() {
@@ -389,6 +393,8 @@ public final class AudioPlayerManager: ObservableObject {
         let finalTitle = title.isEmpty ? displayText : title
         let artworkToken = json.artwork_ts.map(String.init) ?? nowPlaying
 
+        // Keep the UI's combined "Artist - Title" text in trackTitle, but
+        // keep the actual song title separately for system Now Playing.
         trackTitle = displayText
         trackArtist = finalArtist
         songName = finalTitle
@@ -421,7 +427,7 @@ public final class AudioPlayerManager: ObservableObject {
 #if canImport(NowPlaying)
         if #available(iOS 27.0, tvOS 27.0, *) {
             (modernNowPlayingBox as? ModernNowPlayingBridge)?.update(
-                title: trackTitle,
+                title: songName.isEmpty ? trackTitle : songName,
                 artist: trackArtist,
                 isPlaying: isPlaying,
                 artworkJPEG: artworkJPEG,
@@ -438,13 +444,12 @@ public final class AudioPlayerManager: ObservableObject {
         }
         #endif
 
-        // Watch + Lock Screen + Control Center always read the default centre
-        // for a single-player iOS radio app.
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            guard let self else { return }
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = self.makeNowPlayingDictionary()
+        // iPhone/iPad Lock Screen, Control Center and Apple Watch use the
+        // default Now Playing centre for a normal single-player iOS app.
+        let center = MPNowPlayingInfoCenter.default()
+        center.nowPlayingInfo = info
+        if #available(iOS 13.0, *) {
+            center.playbackState = isPlaying ? .playing : .paused
         }
     }
 
@@ -454,18 +459,23 @@ public final class AudioPlayerManager: ObservableObject {
             elapsed = max(0, seconds)
         }
 
-        // Title matches the iPhone "NOW PLAYING" line. Watch Now Playing
-        // requires elapsed + duration keys or it renders a blank black screen.
+        // RadioBoss supplies the actual song metadata. The stream itself does
+        // not contain ICY metadata, so these are the values that must be sent
+        // to the system Now Playing centre.
+        //
+        // This is a live stream. Do not manufacture a zero-second duration:
+        // some Now Playing clients, including Watch/SpringBoard surfaces, can
+        // treat that as an invalid media item. The live-stream flag is enough.
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: trackTitle,
+            MPMediaItemPropertyTitle: songName.isEmpty ? trackTitle : songName,
             MPMediaItemPropertyArtist: trackArtist,
             MPMediaItemPropertyAlbumTitle: "Bootie Mashup Radio",
+            MPMediaItemPropertyAlbumArtist: "Bootie Mashup Radio",
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyMediaType: NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
             MPNowPlayingInfoPropertyPlaybackRate: NSNumber(value: isPlaying ? 1.0 : 0.0),
             MPNowPlayingInfoPropertyDefaultPlaybackRate: NSNumber(value: 1.0),
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: NSNumber(value: elapsed),
-            MPMediaItemPropertyPlaybackDuration: NSNumber(value: 0.0)
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: NSNumber(value: elapsed)
         ]
 
         #if canImport(UIKit)
@@ -478,8 +488,14 @@ public final class AudioPlayerManager: ObservableObject {
 
     private func makeExternalMetadata() -> [AVMetadataItem] {
         var timed: [AVMetadataItem] = []
-        timed.append(Self.metadataItem(identifier: .commonIdentifierTitle, value: trackTitle))
-        timed.append(Self.metadataItem(identifier: .commonIdentifierArtist, value: trackArtist))
+        timed.append(Self.metadataItem(
+            identifier: .commonIdentifierTitle,
+            value: songName.isEmpty ? trackTitle : songName
+        ))
+        timed.append(Self.metadataItem(
+            identifier: .commonIdentifierArtist,
+            value: trackArtist
+        ))
         timed.append(Self.metadataItem(identifier: .commonIdentifierAlbumName, value: "Bootie Mashup Radio"))
         if let jpeg = artworkJPEG {
             let art = AVMutableMetadataItem()
@@ -517,13 +533,24 @@ public final class AudioPlayerManager: ObservableObject {
             jpegImage = rendered
         }
         let frozen = jpegImage
-        if #available(iOS 10.0, tvOS 10.0, *) {
-            return MPMediaItemArtwork(image: frozen)
-        }
+
+        // init(image:) is deprecated. Use the request-handler initializer so
+        // Watch/Lock Screen can ask for the exact artwork size it needs.
         return MPMediaItemArtwork(boundsSize: canvas) { requested in
-            if requested.width <= 0 || requested.height <= 0 { return frozen }
-            return UIGraphicsImageRenderer(size: requested).image { _ in
-                frozen.draw(in: CGRect(origin: .zero, size: requested))
+            let width = requested.width > 0 ? requested.width : canvas.width
+            let height = requested.height > 0 ? requested.height : canvas.height
+
+            return UIGraphicsImageRenderer(
+                size: CGSize(width: width, height: height)
+            ).image { _ in
+                frozen.draw(
+                    in: CGRect(
+                        x: 0,
+                        y: 0,
+                        width: width,
+                        height: height
+                    )
+                )
             }
         }
     }
