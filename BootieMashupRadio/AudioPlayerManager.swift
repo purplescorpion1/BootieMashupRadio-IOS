@@ -41,6 +41,7 @@ public final class AudioPlayerManager: ObservableObject {
     private var nowPlayingSessionBox: AnyObject?
 
     private let metadataHook = StreamMetadataHook()
+
     private init() {
         configureAudioSession()
         setupAudioSessionObservers()
@@ -55,7 +56,8 @@ public final class AudioPlayerManager: ObservableObject {
             #endif
             self.artworkJPEG = jpeg
             self.publishNowPlaying()
-        }    }
+        }
+    }
 
     // MARK: - Audio session
 
@@ -268,10 +270,10 @@ public final class AudioPlayerManager: ObservableObject {
     }
 
     private func attachNowPlayingSession(to player: AVPlayer) {
-        // iOS deliberately does not create an MPNowPlayingSession here.
-        // The iPhone's MPNowPlayingInfoCenter is the sole iOS Now Playing
-        // source. This prevents a second empty media session from taking
-        // ownership of Now Playing on Apple Watch.
+        // An iOS MPNowPlayingSession with auto-publish off still becomes the
+        // system Now Playing source — Watch then shows a blank "Now Playing"
+        // screen because it reads the session centre (empty) instead of
+        // MPNowPlayingInfoCenter.default() (where RadioBoss data is written).
         #if os(tvOS)
         if #available(tvOS 16.0, *) {
             let session = MPNowPlayingSession(players: [player])
@@ -292,7 +294,8 @@ public final class AudioPlayerManager: ObservableObject {
                 self?.publishNowPlaying()
             }
         }
-        #endif        #if canImport(UIKit)
+        #endif
+        #if canImport(UIKit)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         #endif
     }
@@ -397,6 +400,7 @@ public final class AudioPlayerManager: ObservableObject {
                 item.nowPlayingInfo = info
             }
         }
+
         #if os(tvOS)
         if #available(tvOS 16.0, *) {
             if let session = nowPlayingSessionBox as? MPNowPlayingSession {
@@ -407,81 +411,29 @@ public final class AudioPlayerManager: ObservableObject {
 
         // Watch + Lock Screen + Control Center always read the default centre
         // for a single-player iOS radio app.
-        let center = MPNowPlayingInfoCenter.default()
-        center.nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        if #available(iOS 13.0, *) {
-            center.playbackState = isPlaying ? .playing : .paused
-        }
-
-        // Give the system one more update after the artwork/metadata has
-        // reached the main thread. This is especially useful when RadioBoss
-        // metadata arrives immediately after playback starts.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
             guard let self else { return }
-
-            let refreshed = self.makeNowPlayingDictionary()
-            let center = MPNowPlayingInfoCenter.default()
-
-            center.nowPlayingInfo = refreshed
-
-            if #available(iOS 13.0, *) {
-                center.playbackState = self.isPlaying ? .playing : .paused
-            }
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = self.makeNowPlayingDictionary()
         }
     }
 
     private func makeNowPlayingDictionary() -> [String: Any] {
-        // IMPORTANT:
-        // The RadioBoss API is the source of truth for the currently playing
-        // programme/song. The live audio stream itself contains no ICY metadata.
-        //
-        // Use the actual song title as the Now Playing title. `trackTitle`
-        // remains the combined "Artist - Title" string used by the app UI.
-        let nowPlayingTitle = songName.isEmpty
-            ? (trackTitle.isEmpty ? "Bootie Mashup Radio" : trackTitle)
-            : songName
-
-        let nowPlayingArtist = trackArtist.isEmpty
-            ? "Bootie Mashup Radio"
-            : trackArtist
-
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: nowPlayingTitle,
-            MPMediaItemPropertyArtist: nowPlayingArtist,
+            MPMediaItemPropertyTitle: songName.isEmpty ? trackTitle : songName,
+            MPMediaItemPropertyArtist: trackArtist,
             MPMediaItemPropertyAlbumTitle: "Bootie Mashup Radio",
             MPMediaItemPropertyAlbumArtist: "Bootie Mashup Radio",
-
-            // This is a live radio stream. Do not advertise a fake
-            // zero-second duration.
             MPNowPlayingInfoPropertyIsLiveStream: NSNumber(value: true),
-
-            MPNowPlayingInfoPropertyMediaType:
-                NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
-
-            MPNowPlayingInfoPropertyPlaybackRate:
-                NSNumber(value: isPlaying ? 1.0 : 0.0),
-
-            MPNowPlayingInfoPropertyDefaultPlaybackRate:
-                NSNumber(value: 1.0)
+            MPNowPlayingInfoPropertyMediaType: NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
+            MPNowPlayingInfoPropertyPlaybackRate: NSNumber(value: isPlaying ? 1.0 : 0.0),
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: NSNumber(value: 1.0)
         ]
 
-        // A live stream does not have a meaningful finite duration.
-        // Supplying a fake duration of 0 can cause Watch Now Playing to
-        // render an empty/black item.
-        if let seconds = player?.currentTime().seconds,
-           seconds.isFinite,
-           !seconds.isNaN,
-           seconds >= 0 {
-            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                NSNumber(value: seconds)
-        }
-
-        #if canImport(UIKit)
         if let artwork = makeArtwork() {
             info[MPMediaItemPropertyArtwork] = artwork
         }
-        #endif
 
         return info
     }
@@ -504,96 +456,33 @@ public final class AudioPlayerManager: ObservableObject {
 
     #if canImport(UIKit)
     private func makeArtwork() -> MPMediaItemArtwork? {
-        guard let source = artworkImage ?? UIImage(named: "background") else {
-            return nil
-        }
+        guard let source = artworkImage ?? UIImage(named: "background") else { return nil }
 
-        // Keep the image small and predictable for Watch / Lock Screen.
-        let canvas = CGSize(width: 600, height: 600)
-
+        let canvas = CGSize(width: 300, height: 300)
         let rendered = UIGraphicsImageRenderer(size: canvas).image { _ in
             let sourceSize = source.size
-
-            guard sourceSize.width > 0,
-                  sourceSize.height > 0 else {
-                return
-            }
-
-            let scale = max(
-                canvas.width / sourceSize.width,
-                canvas.height / sourceSize.height
-            )
-
-            let scaledSize = CGSize(
-                width: sourceSize.width * scale,
-                height: sourceSize.height * scale
-            )
-
-            let origin = CGPoint(
-                x: (canvas.width - scaledSize.width) / 2,
-                y: (canvas.height - scaledSize.height) / 2
-            )
-
-            source.draw(
-                in: CGRect(
-                    origin: origin,
-                    size: scaledSize
-                )
-            )
+            guard sourceSize.width > 0, sourceSize.height > 0 else { return }
+            let scale = max(canvas.width / sourceSize.width, canvas.height / sourceSize.height)
+            let size = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
+            let origin = CGPoint(x: (canvas.width - size.width) / 2, y: (canvas.height - size.height) / 2)
+            source.draw(in: CGRect(origin: origin, size: size))
         }
 
-        let artworkImage: UIImage
-
-        if let jpeg = rendered.jpegData(compressionQuality: 0.85),
-           let decoded = UIImage(data: jpeg) {
-            artworkImage = decoded
+        let frozen: UIImage
+        if let data = rendered.jpegData(compressionQuality: 0.82), let image = UIImage(data: data) {
+            frozen = image
         } else {
-            artworkImage = rendered
+            frozen = rendered
         }
 
-        let frozenImage = artworkImage
-        // IMPORTANT:
-        // Always use the request-handler initializer. The old
-        // MPMediaItemArtwork(image:) initializer is deprecated.
-        return MPMediaItemArtwork(
-            boundsSize: canvas
-        ) { requestedSize in
-
-            guard requestedSize.width > 0,
-                  requestedSize.height > 0 else {
-                return frozenImage
-            }
-
-            let requested = CGSize(
-                width: min(requestedSize.width, 600),
-                height: min(requestedSize.height, 600)
-            )
-
-            return UIGraphicsImageRenderer(
-                size: requested
-            ).image { _ in
-
-                let scale = max(
-                    requested.width / frozenImage.size.width,
-                    requested.height / frozenImage.size.height
-                )
-
-                let scaledSize = CGSize(
-                    width: frozenImage.size.width * scale,
-                    height: frozenImage.size.height * scale
-                )
-
-                let origin = CGPoint(
-                    x: (requested.width - scaledSize.width) / 2,
-                    y: (requested.height - scaledSize.height) / 2
-                )
-
-                frozenImage.draw(
-                    in: CGRect(
-                        origin: origin,
-                        size: scaledSize
-                    )
-                )
+        return MPMediaItemArtwork(boundsSize: canvas) { requestedSize in
+            guard requestedSize.width > 0, requestedSize.height > 0 else { return frozen }
+            let size = CGSize(width: min(requestedSize.width, 600), height: min(requestedSize.height, 600))
+            return UIGraphicsImageRenderer(size: size).image { _ in
+                let scale = max(size.width / frozen.size.width, size.height / frozen.size.height)
+                let drawSize = CGSize(width: frozen.size.width * scale, height: frozen.size.height * scale)
+                let origin = CGPoint(x: (size.width - drawSize.width) / 2, y: (size.height - drawSize.height) / 2)
+                frozen.draw(in: CGRect(origin: origin, size: drawSize))
             }
         }
     }
