@@ -30,9 +30,9 @@ public final class AudioPlayerManager: ObservableObject {
     private var pollingTimer: Timer?
     private var lastNowPlaying: String = ""
 
-    /// Modern Now Playing session (iOS 16+ / tvOS 16+). Preferred path for
-    /// Lock Screen, Control Center, Dynamic Island, CarPlay and Apple Watch.
-    private var nowPlayingSession: MPNowPlayingSession?
+    /// Modern Now Playing session (iOS 16+ / tvOS 16+). Stored as AnyObject
+    /// so the class itself can still target iOS 15 / tvOS 15.
+    private var _nowPlayingSessionBox: AnyObject?
 
     private init() {
         configureAudioSession()
@@ -194,9 +194,11 @@ public final class AudioPlayerManager: ObservableObject {
         // Promote the session so the system (Watch, Lock Screen, Control Center)
         // treats this app as the Now Playing source.
         if #available(iOS 16.0, tvOS 16.0, *) {
-            nowPlayingSession?.becomeActiveIfPossible { [weak self] success in
-                if success {
-                    self?.updateNowPlayingInfo()
+            if let session = _nowPlayingSessionBox as? MPNowPlayingSession {
+                session.becomeActiveIfPossible { [weak self] success in
+                    if success {
+                        self?.updateNowPlayingInfo()
+                    }
                 }
             }
         }
@@ -229,7 +231,7 @@ public final class AudioPlayerManager: ObservableObject {
         timeControlStatusObservation?.invalidate()
         timeControlStatusObservation = nil
         if #available(iOS 16.0, tvOS 16.0, *) {
-            nowPlayingSession = nil
+            _nowPlayingSessionBox = nil
         }
 
         let item = AVPlayerItem(url: url)
@@ -255,11 +257,11 @@ public final class AudioPlayerManager: ObservableObject {
         newPlayer.isMuted = isMuted
         self.player = newPlayer
 
-        // Create / attach modern Now Playing session
+        // Create / attach modern Now Playing session (iOS 16+ / tvOS 16+)
         if #available(iOS 16.0, tvOS 16.0, *) {
             let session = MPNowPlayingSession(players: [newPlayer])
-            session.automaticallyPublishNowPlayingInfo = false // we publish manually for full control
-            self.nowPlayingSession = session
+            // We publish metadata manually for full control over live-stream keys.
+            self._nowPlayingSessionBox = session
             // Re-wire remote commands through the session's command center
             configureCommandCenter(session.remoteCommandCenter)
             session.becomeActiveIfPossible { _ in }
@@ -510,13 +512,12 @@ public final class AudioPlayerManager: ObservableObject {
         // Publish via the modern session when available; otherwise fall back
         // to the global default center (pre-iOS 16 / older tvOS).
         if #available(iOS 16.0, tvOS 16.0, *) {
-            if let session = nowPlayingSession {
+            if let session = _nowPlayingSessionBox as? MPNowPlayingSession {
                 session.nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo
-                // Also keep the global center in sync – some accessories still read it
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
-            } else {
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
             }
+            // Always keep the global centre in sync – Watch / Lock Screen /
+            // Control Center / CarPlay still read it on many OS versions.
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         } else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         }
