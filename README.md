@@ -7,14 +7,6 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 
 ---
 
-### Screenshots
-
-<p>Phone</p>
-<img src="/Preview/BM_Radio_V2.0_Mobile.jpg" alt="drawing" width="200"/>
-
-<p>TV</p>
-<img src="/Preview/BM_Radio_2.0_TV.png" alt="drawing" width="500"/>
-
 ## Features
 
 - 🎧 **24/7 High Quality Audio Streaming**: Automatic primary stream connection with automatic seamless failover to secondary stream if needed.
@@ -26,6 +18,14 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 - 📱 **Lock Screen, Control Center & Media Remote Control**: Full integration with iOS `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` for remote playback control and background media playback.
 
 ---
+
+### Screenshots
+
+<p>Phone</p>
+<img src="/Preview/BM_Radio_V2.0_Mobile.jpg" alt="drawing" width="200"/>
+
+<p>TV</p>
+<img src="/Preview/BM_Radio_2.0_TV.png" alt="drawing" width="500"/>
 
 ## Compatibility
 
