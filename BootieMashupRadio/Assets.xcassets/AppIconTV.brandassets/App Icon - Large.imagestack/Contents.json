@@ -1,10 +1,10 @@
 {
   "layers": [
     {
-      "filename": "Front.imageset"
+      "filename": "Front.imagelayer"
     },
     {
-      "filename": "Back.imageset"
+      "filename": "Back.imagelayer"
     }
   ],
   "info": {
