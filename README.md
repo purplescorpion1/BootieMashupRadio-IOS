@@ -21,7 +21,7 @@ The android version can be found https://github.com/purplescorpion1/Bootie-Mashu
 - 📺 **iOS & tvOS Support**: Full support for iPhone, iPad, and Apple TV (tvOS 15.0+).
 - 📻 **Live Now Playing & Coming Next Info**: Automatic metadata updates for current track, artist, and coming next track every 5 seconds.
 - 🖼️ **Album Artwork Integration**: Real-time album artwork updates fetched directly from the stream feed with smooth fallback graphics.
-- 🔊 **Mute / Unmute & Play / Pause Controls**: Simple, sleek touch controls matching the Android application layout.
+- 🔊 **Mute / Unmute & Play / Pause Controls**: Simple, sleek touch controls matching the iOS application layout.
 - 📡 **AirPlay & Bluetooth Support**: Control playback via connected Bluetooth devices (headphones, car audio, Apple Watch) or stream to AirPlay receivers using the built-in route picker.
 - 📱 **Lock Screen, Control Center & Media Remote Control**: Full integration with iOS `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` for remote playback control and background media playback.
 
