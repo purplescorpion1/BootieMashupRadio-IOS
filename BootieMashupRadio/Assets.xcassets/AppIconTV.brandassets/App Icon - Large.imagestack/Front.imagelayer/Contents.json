@@ -1,9 +1,14 @@
 {
   "images": [
     {
-      "filename": "AppIconTV-2x.png",
+      "filename": "AppIconTV-1x.png",
       "idiom": "tv",
       "scale": "1x"
+    },
+    {
+      "filename": "AppIconTV-2x.png",
+      "idiom": "tv",
+      "scale": "2x"
     }
   ],
   "info": {
