@@ -282,28 +282,36 @@ public final class AudioPlayerManager: ObservableObject {
     }
 
     private func attachNowPlayingSession(to player: AVPlayer) {
-        if #available(iOS 16.0, tvOS 16.0, *) {
+        // An iOS MPNowPlayingSession with auto-publish off still becomes the
+        // system Now Playing source — Watch then shows a blank "Now Playing"
+        // screen because it reads the session centre (empty) instead of
+        // MPNowPlayingInfoCenter.default() (where RadioBoss data is written).
+        #if os(tvOS)
+        if #available(tvOS 16.0, *) {
             let session = MPNowPlayingSession(players: [player])
-            // MUST stay false. The Icecast stream has no tags; auto-publish
-            // would broadcast empty Now Playing and Watch shows "Not Playing".
             session.automaticallyPublishesNowPlayingInfo = false
             configureCommandCenter(session.remoteCommandCenter)
             nowPlayingSessionBox = session
             session.becomeActiveIfPossible { _ in }
         }
+        #else
+        _ = player
+        #endif
     }
 
     private func becomeNowPlayingApp() {
-        if #available(iOS 16.0, tvOS 16.0, *) {
+        #if os(tvOS)
+        if #available(tvOS 16.0, *) {
             (nowPlayingSessionBox as? MPNowPlayingSession)?.becomeActiveIfPossible { [weak self] _ in
                 self?.publishNowPlaying()
             }
         }
-#if canImport(NowPlaying)
+        #endif
+        #if canImport(NowPlaying)
         if #available(iOS 27.0, tvOS 27.0, *) {
             (modernNowPlayingBox as? ModernNowPlayingBridge)?.activate()
         }
-#endif
+        #endif
         #if canImport(UIKit)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         #endif
@@ -413,42 +421,52 @@ public final class AudioPlayerManager: ObservableObject {
 #if canImport(NowPlaying)
         if #available(iOS 27.0, tvOS 27.0, *) {
             (modernNowPlayingBox as? ModernNowPlayingBridge)?.update(
-                title: songName,
+                title: trackTitle,
                 artist: trackArtist,
                 isPlaying: isPlaying,
                 artworkJPEG: artworkJPEG,
-                artworkId: lastArtworkToken.isEmpty ? songName : lastArtworkToken
+                artworkId: lastArtworkToken.isEmpty ? trackTitle : lastArtworkToken
             )
-            // Do not also write MPNowPlayingInfoCenter on iOS 27 — mixing APIs
-            // produces undefined Now Playing state (Watch shows "Not Playing").
-            return
         }
 #endif
 
-        if #available(iOS 16.0, tvOS 16.0, *) {
+        #if os(tvOS)
+        if #available(tvOS 16.0, *) {
             if let session = nowPlayingSessionBox as? MPNowPlayingSession {
                 session.nowPlayingInfoCenter.nowPlayingInfo = info
             }
         }
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        #if targetEnvironment(macCatalyst)
-        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
         #endif
+
+        // Watch + Lock Screen + Control Center always read the default centre
+        // for a single-player iOS radio app.
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = self.makeNowPlayingDictionary()
+        }
     }
 
     private func makeNowPlayingDictionary() -> [String: Any] {
+        var elapsed: Double = 0
+        if let seconds = player?.currentTime().seconds, seconds.isFinite, !seconds.isNaN {
+            elapsed = max(0, seconds)
+        }
+
+        // Title matches the iPhone "NOW PLAYING" line. Watch Now Playing
+        // requires elapsed + duration keys or it renders a blank black screen.
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: songName,
+            MPMediaItemPropertyTitle: trackTitle,
             MPMediaItemPropertyArtist: trackArtist,
             MPMediaItemPropertyAlbumTitle: "Bootie Mashup Radio",
             MPNowPlayingInfoPropertyIsLiveStream: true,
-            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
-            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
+            MPNowPlayingInfoPropertyMediaType: NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
+            MPNowPlayingInfoPropertyPlaybackRate: NSNumber(value: isPlaying ? 1.0 : 0.0),
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: NSNumber(value: 1.0),
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: NSNumber(value: elapsed),
+            MPMediaItemPropertyPlaybackDuration: NSNumber(value: 0.0)
         ]
-        // Live: never publish a finite duration. Elapsed time is omitted so
-        // Watch / Lock Screen show the LIVE badge instead of a stuck scrubber.
 
         #if canImport(UIKit)
         if let artwork = makeArtwork() {
@@ -460,7 +478,7 @@ public final class AudioPlayerManager: ObservableObject {
 
     private func makeExternalMetadata() -> [AVMetadataItem] {
         var timed: [AVMetadataItem] = []
-        timed.append(Self.metadataItem(identifier: .commonIdentifierTitle, value: songName))
+        timed.append(Self.metadataItem(identifier: .commonIdentifierTitle, value: trackTitle))
         timed.append(Self.metadataItem(identifier: .commonIdentifierArtist, value: trackArtist))
         timed.append(Self.metadataItem(identifier: .commonIdentifierAlbumName, value: "Bootie Mashup Radio"))
         if let jpeg = artworkJPEG {
@@ -478,21 +496,36 @@ public final class AudioPlayerManager: ObservableObject {
     private func makeArtwork() -> MPMediaItemArtwork? {
         let source = artworkImage ?? UIImage(named: "background")
         guard let source else { return nil }
-        let maxDimension: CGFloat = 512
-        let longest = max(source.size.width, source.size.height)
-        let image: UIImage
-        if longest > maxDimension, longest > 0 {
-            let scale = maxDimension / longest
-            let size = CGSize(width: (source.size.width * scale).rounded(),
-                              height: (source.size.height * scale).rounded())
-            image = UIGraphicsImageRenderer(size: size).image { _ in
-                source.draw(in: CGRect(origin: .zero, size: size))
-            }
-        } else {
-            image = source
+
+        // Watch Now Playing drops the whole item if artwork is huge, wide-gamut,
+        // or the request handler returns a different size than asked.
+        let canvas = CGSize(width: 300, height: 300)
+        let rendered = UIGraphicsImageRenderer(size: canvas).image { _ in
+            let src = source.size
+            guard src.width > 0, src.height > 0 else { return }
+            let scale = max(canvas.width / src.width, canvas.height / src.height)
+            let scaled = CGSize(width: src.width * scale, height: src.height * scale)
+            let origin = CGPoint(x: (canvas.width - scaled.width) / 2,
+                                 y: (canvas.height - scaled.height) / 2)
+            source.draw(in: CGRect(origin: origin, size: scaled))
         }
-        let frozen = image
-        return MPMediaItemArtwork(boundsSize: frozen.size) { _ in frozen }
+        let jpegImage: UIImage
+        if let data = rendered.jpegData(compressionQuality: 0.82),
+           let decoded = UIImage(data: data) {
+            jpegImage = decoded
+        } else {
+            jpegImage = rendered
+        }
+        let frozen = jpegImage
+        if #available(iOS 10.0, tvOS 10.0, *) {
+            return MPMediaItemArtwork(image: frozen)
+        }
+        return MPMediaItemArtwork(boundsSize: canvas) { requested in
+            if requested.width <= 0 || requested.height <= 0 { return frozen }
+            return UIGraphicsImageRenderer(size: requested).image { _ in
+                frozen.draw(in: CGRect(origin: .zero, size: requested))
+            }
+        }
     }
     #endif
 
