@@ -20,7 +20,9 @@ public final class AudioPlayerManager: ObservableObject {
     @Published public private(set) var trackArtist: String = "Bootie Mashup Radio"
     @Published public private(set) var songName: String = "Bootie Mashup Radio"
     @Published public private(set) var nextTrackTitle: String = ""
+    #if canImport(UIKit)
     @Published public private(set) var artworkImage: UIImage? = nil
+    #endif
 
     private var player: AVPlayer?
     private var timeControlStatusObservation: NSKeyValueObservation?
@@ -28,11 +30,17 @@ public final class AudioPlayerManager: ObservableObject {
     private var pollingTimer: Timer?
     private var lastNowPlaying: String = ""
 
+    /// Modern Now Playing session (iOS 16+ / tvOS 16+). Preferred path for
+    /// Lock Screen, Control Center, Dynamic Island, CarPlay and Apple Watch.
+    private var nowPlayingSession: MPNowPlayingSession?
+
     private init() {
         configureAudioSession()
         setupAudioSessionObservers()
         setupRemoteCommandCenter()
     }
+
+    // MARK: - Audio Session
 
     public func configureAudioSession() {
         do {
@@ -98,9 +106,29 @@ public final class AudioPlayerManager: ObservableObject {
         }
     }
 
-    public func setupRemoteCommandCenter() {
-        let commandCenter = MPRemoteCommandCenter.shared()
+    // MARK: - Remote Command Center
 
+    public func setupRemoteCommandCenter() {
+        // Prefer the session's command center when available; fall back to shared.
+        let commandCenter: MPRemoteCommandCenter
+        if #available(iOS 16.0, tvOS 16.0, *) {
+            // Session is created later (once we have a player). Use shared for now;
+            // we re-wire targets after the session exists.
+            commandCenter = MPRemoteCommandCenter.shared()
+        } else {
+            commandCenter = MPRemoteCommandCenter.shared()
+        }
+
+        configureCommandCenter(commandCenter)
+
+        #if canImport(UIKit)
+        DispatchQueue.main.async {
+            UIApplication.shared.beginReceivingRemoteControlEvents()
+        }
+        #endif
+    }
+
+    private func configureCommandCenter(_ commandCenter: MPRemoteCommandCenter) {
         // Disable unsupported commands for live radio streaming
         commandCenter.nextTrackCommand.isEnabled = false
         commandCenter.nextTrackCommand.removeTarget(nil)
@@ -151,13 +179,9 @@ public final class AudioPlayerManager: ObservableObject {
             self?.pause()
             return .success
         }
-
-        #if canImport(UIKit)
-        DispatchQueue.main.async {
-            UIApplication.shared.beginReceivingRemoteControlEvents()
-        }
-        #endif
     }
+
+    // MARK: - Playback
 
     public func play() {
         configureAudioSession()
@@ -166,6 +190,17 @@ public final class AudioPlayerManager: ObservableObject {
         }
         player?.play()
         isPlaying = true
+
+        // Promote the session so the system (Watch, Lock Screen, Control Center)
+        // treats this app as the Now Playing source.
+        if #available(iOS 16.0, tvOS 16.0, *) {
+            nowPlayingSession?.becomeActiveIfPossible { [weak self] success in
+                if success {
+                    self?.updateNowPlayingInfo()
+                }
+            }
+        }
+
         updateNowPlayingInfo()
         startMetadataPolling()
     }
@@ -190,23 +225,56 @@ public final class AudioPlayerManager: ObservableObject {
     }
 
     private func setupPlayer(with url: URL) {
+        // Tear down previous observation / session
+        timeControlStatusObservation?.invalidate()
+        timeControlStatusObservation = nil
+        if #available(iOS 16.0, tvOS 16.0, *) {
+            nowPlayingSession = nil
+        }
+
         let item = AVPlayerItem(url: url)
+        // Help the system publish basic metadata even before our manual update
+        if #available(iOS 12.2, tvOS 12.2, *) {
+            var metadata: [AVMetadataItem] = []
+            let titleItem = AVMutableMetadataItem()
+            titleItem.identifier = .commonIdentifierTitle
+            titleItem.value = songName as NSString
+            titleItem.extendedLanguageTag = "und"
+            metadata.append(titleItem)
+
+            let artistItem = AVMutableMetadataItem()
+            artistItem.identifier = .commonIdentifierArtist
+            artistItem.value = trackArtist as NSString
+            artistItem.extendedLanguageTag = "und"
+            metadata.append(artistItem)
+
+            item.externalMetadata = metadata
+        }
+
         let newPlayer = AVPlayer(playerItem: item)
         newPlayer.isMuted = isMuted
         self.player = newPlayer
 
-        timeControlStatusObservation?.invalidate()
+        // Create / attach modern Now Playing session
+        if #available(iOS 16.0, tvOS 16.0, *) {
+            let session = MPNowPlayingSession(players: [newPlayer])
+            session.automaticallyPublishNowPlayingInfo = false // we publish manually for full control
+            self.nowPlayingSession = session
+            // Re-wire remote commands through the session's command center
+            configureCommandCenter(session.remoteCommandCenter)
+            session.becomeActiveIfPossible { _ in }
+        }
+
         timeControlStatusObservation = newPlayer.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                if player.timeControlStatus == .playing {
-                    if !self.isPlaying {
-                        self.isPlaying = true
-                    }
-                } else if player.timeControlStatus == .paused {
-                    if self.isPlaying {
-                        self.isPlaying = false
-                    }
+                switch player.timeControlStatus {
+                case .playing:
+                    if !self.isPlaying { self.isPlaying = true }
+                case .paused:
+                    if self.isPlaying { self.isPlaying = false }
+                default:
+                    break
                 }
                 self.updateNowPlayingInfo()
             }
@@ -240,11 +308,17 @@ public final class AudioPlayerManager: ObservableObject {
         }
     }
 
+    // MARK: - Metadata Polling
+
     public func startMetadataPolling() {
         stopMetadataPolling()
         fetchMetadata()
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.fetchMetadata()
+        }
+        // Keep the timer firing while the app is in the background (RunLoop.common)
+        if let timer = pollingTimer {
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
 
@@ -292,7 +366,7 @@ public final class AudioPlayerManager: ObservableObject {
 
                     let finalArtist = !artist.isEmpty ? artist : "Bootie Mashup Radio"
                     let finalTitle = !title.isEmpty ? title : (displayText.isEmpty ? "Bootie Mashup Radio" : displayText)
-                    let nextText = !nextTrack.isEmpty ? nextTrack : "Bootie Mashup Radio"
+                    let nextText = !nextTrack.isEmpty ? nextTrack : ""
 
                     DispatchQueue.main.async {
                         self.trackTitle = displayText
@@ -300,6 +374,7 @@ public final class AudioPlayerManager: ObservableObject {
                         self.songName = finalTitle
                         self.nextTrackTitle = nextText
                         self.updateNowPlayingInfo()
+                        self.updatePlayerItemExternalMetadata()
                     }
 
                     if nowPlaying != self.lastNowPlaying || self.artworkImage == nil {
@@ -322,36 +397,133 @@ public final class AudioPlayerManager: ObservableObject {
         request.timeoutInterval = 10.0
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
-            guard let self = self, let data = data, error == nil, let image = UIImage(data: data) else { return }
+            guard let self = self, let data = data, error == nil else { return }
+            #if canImport(UIKit)
+            guard let image = UIImage(data: data) else { return }
             DispatchQueue.main.async {
                 self.artworkImage = image
                 self.updateNowPlayingInfo()
+                self.updatePlayerItemExternalMetadata()
             }
+            #endif
         }.resume()
     }
 
+    // MARK: - Now Playing Info (Lock Screen / Control Center / Watch / CarPlay / tvOS)
+
+    /// Keeps AVPlayerItem.externalMetadata in sync so automatic publishers
+    /// (and some accessories) also receive title / artist / artwork.
+    private func updatePlayerItemExternalMetadata() {
+        guard let item = player?.currentItem else { return }
+        if #available(iOS 12.2, tvOS 12.2, *) {
+            var metadata: [AVMetadataItem] = []
+
+            let titleItem = AVMutableMetadataItem()
+            titleItem.identifier = .commonIdentifierTitle
+            titleItem.value = songName as NSString
+            titleItem.extendedLanguageTag = "und"
+            metadata.append(titleItem)
+
+            let artistItem = AVMutableMetadataItem()
+            artistItem.identifier = .commonIdentifierArtist
+            artistItem.value = trackArtist as NSString
+            artistItem.extendedLanguageTag = "und"
+            metadata.append(artistItem)
+
+            let albumItem = AVMutableMetadataItem()
+            albumItem.identifier = .commonIdentifierAlbumName
+            albumItem.value = "Bootie Mashup Radio" as NSString
+            albumItem.extendedLanguageTag = "und"
+            metadata.append(albumItem)
+
+            #if canImport(UIKit)
+            if let image = artworkImage ?? UIImage(named: "background"),
+               let jpeg = image.jpegData(compressionQuality: 0.85) {
+                let artItem = AVMutableMetadataItem()
+                artItem.identifier = .commonIdentifierArtwork
+                artItem.value = jpeg as NSData
+                artItem.dataType = kCMMetadataBaseDataType_JPEG as String
+                artItem.extendedLanguageTag = "und"
+                metadata.append(artItem)
+            }
+            #endif
+
+            item.externalMetadata = metadata
+        }
+    }
+
     public func updateNowPlayingInfo() {
+        // Always build the dictionary on the main thread
         var nowPlayingInfo = [String: Any]()
 
         nowPlayingInfo[MPMediaItemPropertyTitle] = songName
         nowPlayingInfo[MPMediaItemPropertyArtist] = trackArtist
         nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "Bootie Mashup Radio"
 
-        let effectiveArtworkImage = artworkImage ?? UIImage(named: "background")
-        if let image = effectiveArtworkImage {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-        }
+        // Media type helps some surfaces (Watch, CarPlay) classify the content
+        nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
 
+        // Live stream flag – shows the "LIVE" indicator and disables scrubbing
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
 
-        if let currentTimeSeconds = player?.currentTime().seconds, currentTimeSeconds.isFinite, !currentTimeSeconds.isNaN {
-            nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTimeSeconds
+        // Playback rate is the primary signal for play vs pause UI
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
+
+        // For live radio do NOT publish a finite duration; some clients
+        // mis-behave if duration is present together with IsLiveStream.
+        // Elapsed time can still be supplied (starts at 0 and grows).
+        if let currentTimeSeconds = player?.currentTime().seconds,
+           currentTimeSeconds.isFinite, !currentTimeSeconds.isNaN {
+            nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = max(0, currentTimeSeconds)
         } else {
             nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
         }
 
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        #if canImport(UIKit)
+        // Prefer the live artwork; fall back to the bundled background image
+        let effectiveArtworkImage = artworkImage ?? UIImage(named: "background")
+        if let image = effectiveArtworkImage {
+            // Provide a reasonably sized artwork. Very large images can be
+            // dropped by the Watch / CarPlay pipelines.
+            let maxDimension: CGFloat = 600
+            let artworkImageToUse: UIImage
+            if max(image.size.width, image.size.height) > maxDimension {
+                let scale = maxDimension / max(image.size.width, image.size.height)
+                let newSize = CGSize(width: image.size.width * scale,
+                                     height: image.size.height * scale)
+                let renderer = UIGraphicsImageRenderer(size: newSize)
+                artworkImageToUse = renderer.image { _ in
+                    image.draw(in: CGRect(origin: .zero, size: newSize))
+                }
+            } else {
+                artworkImageToUse = image
+            }
+
+            let artwork = MPMediaItemArtwork(boundsSize: artworkImageToUse.size) { _ in
+                artworkImageToUse
+            }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+        #endif
+
+        // Publish via the modern session when available; otherwise fall back
+        // to the global default center (pre-iOS 16 / older tvOS).
+        if #available(iOS 16.0, tvOS 16.0, *) {
+            if let session = nowPlayingSession {
+                session.nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo
+                // Also keep the global center in sync – some accessories still read it
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+            } else {
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+            }
+        } else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        }
+
+        // On macOS Catalyst / some older paths the explicit playbackState helps
+        #if targetEnvironment(macCatalyst)
+        MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+        #endif
     }
 }
