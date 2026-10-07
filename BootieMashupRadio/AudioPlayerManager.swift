@@ -6,10 +6,6 @@ import CoreMedia
 #if canImport(UIKit)
 import UIKit
 #endif
-#if canImport(NowPlaying)
-import NowPlaying
-import Observation
-#endif
 
 /// Live Icecast player.
 ///
@@ -45,10 +41,6 @@ public final class AudioPlayerManager: ObservableObject {
     private var nowPlayingSessionBox: AnyObject?
 
     private let metadataHook = StreamMetadataHook()
-#if canImport(NowPlaying)
-    private var modernNowPlayingBox: AnyObject?
-#endif
-
     private init() {
         configureAudioSession()
         setupAudioSessionObservers()
@@ -63,13 +55,7 @@ public final class AudioPlayerManager: ObservableObject {
             #endif
             self.artworkJPEG = jpeg
             self.publishNowPlaying()
-        }
-#if canImport(NowPlaying)
-        if #available(iOS 27.0, tvOS 27.0, *) {
-            modernNowPlayingBox = ModernNowPlayingBridge()
-        }
-#endif
-    }
+        }    }
 
     // MARK: - Audio session
 
@@ -202,12 +188,8 @@ public final class AudioPlayerManager: ObservableObject {
         player?.playImmediately(atRate: 1.0)
         isPlaying = true
         becomeNowPlayingApp()
-
-        // Start RadioBoss polling before the first Now Playing publication.
-        // fetchNow() runs immediately, then continues every 5 seconds.
-        metadataHook.start()
-
         publishNowPlaying()
+        metadataHook.start()
     }
 
     public func pause() {
@@ -286,10 +268,10 @@ public final class AudioPlayerManager: ObservableObject {
     }
 
     private func attachNowPlayingSession(to player: AVPlayer) {
-        // An iOS MPNowPlayingSession with auto-publish off still becomes the
-        // system Now Playing source — Watch then shows a blank "Now Playing"
-        // screen because it reads the session centre (empty) instead of
-        // MPNowPlayingInfoCenter.default() (where RadioBoss data is written).
+        // iOS deliberately does not create an MPNowPlayingSession here.
+        // The iPhone's MPNowPlayingInfoCenter is the sole iOS Now Playing
+        // source. This prevents a second empty media session from taking
+        // ownership of Now Playing on Apple Watch.
         #if os(tvOS)
         if #available(tvOS 16.0, *) {
             let session = MPNowPlayingSession(players: [player])
@@ -310,13 +292,7 @@ public final class AudioPlayerManager: ObservableObject {
                 self?.publishNowPlaying()
             }
         }
-        #endif
-        #if canImport(NowPlaying)
-        if #available(iOS 27.0, tvOS 27.0, *) {
-            (modernNowPlayingBox as? ModernNowPlayingBridge)?.activate()
-        }
-        #endif
-        #if canImport(UIKit)
+        #endif        #if canImport(UIKit)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         #endif
     }
@@ -393,8 +369,6 @@ public final class AudioPlayerManager: ObservableObject {
         let finalTitle = title.isEmpty ? displayText : title
         let artworkToken = json.artwork_ts.map(String.init) ?? nowPlaying
 
-        // Keep the UI's combined "Artist - Title" text in trackTitle, but
-        // keep the actual song title separately for system Now Playing.
         trackTitle = displayText
         trackArtist = finalArtist
         songName = finalTitle
@@ -423,19 +397,6 @@ public final class AudioPlayerManager: ObservableObject {
                 item.nowPlayingInfo = info
             }
         }
-
-#if canImport(NowPlaying)
-        if #available(iOS 27.0, tvOS 27.0, *) {
-            (modernNowPlayingBox as? ModernNowPlayingBridge)?.update(
-                title: songName.isEmpty ? trackTitle : songName,
-                artist: trackArtist,
-                isPlaying: isPlaying,
-                artworkJPEG: artworkJPEG,
-                artworkId: lastArtworkToken.isEmpty ? trackTitle : lastArtworkToken
-            )
-        }
-#endif
-
         #if os(tvOS)
         if #available(tvOS 16.0, *) {
             if let session = nowPlayingSessionBox as? MPNowPlayingSession {
@@ -444,58 +405,91 @@ public final class AudioPlayerManager: ObservableObject {
         }
         #endif
 
-        // iPhone/iPad Lock Screen, Control Center and Apple Watch use the
-        // default Now Playing centre for a normal single-player iOS app.
+        // Watch + Lock Screen + Control Center always read the default centre
+        // for a single-player iOS radio app.
         let center = MPNowPlayingInfoCenter.default()
         center.nowPlayingInfo = info
+
         if #available(iOS 13.0, *) {
             center.playbackState = isPlaying ? .playing : .paused
+        }
+
+        // Give the system one more update after the artwork/metadata has
+        // reached the main thread. This is especially useful when RadioBoss
+        // metadata arrives immediately after playback starts.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+
+            let refreshed = self.makeNowPlayingDictionary()
+            let center = MPNowPlayingInfoCenter.default()
+
+            center.nowPlayingInfo = refreshed
+
+            if #available(iOS 13.0, *) {
+                center.playbackState = self.isPlaying ? .playing : .paused
+            }
         }
     }
 
     private func makeNowPlayingDictionary() -> [String: Any] {
-        var elapsed: Double = 0
-        if let seconds = player?.currentTime().seconds, seconds.isFinite, !seconds.isNaN {
-            elapsed = max(0, seconds)
-        }
-
-        // RadioBoss supplies the actual song metadata. The stream itself does
-        // not contain ICY metadata, so these are the values that must be sent
-        // to the system Now Playing centre.
+        // IMPORTANT:
+        // The RadioBoss API is the source of truth for the currently playing
+        // programme/song. The live audio stream itself contains no ICY metadata.
         //
-        // This is a live stream. Do not manufacture a zero-second duration:
-        // some Now Playing clients, including Watch/SpringBoard surfaces, can
-        // treat that as an invalid media item. The live-stream flag is enough.
+        // Use the actual song title as the Now Playing title. `trackTitle`
+        // remains the combined "Artist - Title" string used by the app UI.
+        let nowPlayingTitle = songName.isEmpty
+            ? (trackTitle.isEmpty ? "Bootie Mashup Radio" : trackTitle)
+            : songName
+
+        let nowPlayingArtist = trackArtist.isEmpty
+            ? "Bootie Mashup Radio"
+            : trackArtist
+
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: songName.isEmpty ? trackTitle : songName,
-            MPMediaItemPropertyArtist: trackArtist,
+            MPMediaItemPropertyTitle: nowPlayingTitle,
+            MPMediaItemPropertyArtist: nowPlayingArtist,
             MPMediaItemPropertyAlbumTitle: "Bootie Mashup Radio",
             MPMediaItemPropertyAlbumArtist: "Bootie Mashup Radio",
-            MPNowPlayingInfoPropertyIsLiveStream: true,
-            MPNowPlayingInfoPropertyMediaType: NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
-            MPNowPlayingInfoPropertyPlaybackRate: NSNumber(value: isPlaying ? 1.0 : 0.0),
-            MPNowPlayingInfoPropertyDefaultPlaybackRate: NSNumber(value: 1.0),
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: NSNumber(value: elapsed)
+
+            // This is a live radio stream. Do not advertise a fake
+            // zero-second duration.
+            MPNowPlayingInfoPropertyIsLiveStream: NSNumber(value: true),
+
+            MPNowPlayingInfoPropertyMediaType:
+                NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue),
+
+            MPNowPlayingInfoPropertyPlaybackRate:
+                NSNumber(value: isPlaying ? 1.0 : 0.0),
+
+            MPNowPlayingInfoPropertyDefaultPlaybackRate:
+                NSNumber(value: 1.0)
         ]
+
+        // A live stream does not have a meaningful finite duration.
+        // Supplying a fake duration of 0 can cause Watch Now Playing to
+        // render an empty/black item.
+        if let seconds = player?.currentTime().seconds,
+           seconds.isFinite,
+           !seconds.isNaN,
+           seconds >= 0 {
+            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
+                NSNumber(value: seconds)
+        }
 
         #if canImport(UIKit)
         if let artwork = makeArtwork() {
             info[MPMediaItemPropertyArtwork] = artwork
         }
         #endif
+
         return info
     }
 
     private func makeExternalMetadata() -> [AVMetadataItem] {
         var timed: [AVMetadataItem] = []
-        timed.append(Self.metadataItem(
-            identifier: .commonIdentifierTitle,
-            value: songName.isEmpty ? trackTitle : songName
-        ))
-        timed.append(Self.metadataItem(
-            identifier: .commonIdentifierArtist,
-            value: trackArtist
-        ))
+        timed.append(Self.metadataItem(identifier: .commonIdentifierTitle, value: trackTitle))
+        timed.append(Self.metadataItem(identifier: .commonIdentifierArtist, value: trackArtist))
         timed.append(Self.metadataItem(identifier: .commonIdentifierAlbumName, value: "Bootie Mashup Radio"))
         if let jpeg = artworkJPEG {
             let art = AVMutableMetadataItem()
@@ -510,45 +504,94 @@ public final class AudioPlayerManager: ObservableObject {
 
     #if canImport(UIKit)
     private func makeArtwork() -> MPMediaItemArtwork? {
-        let source = artworkImage ?? UIImage(named: "background")
-        guard let source else { return nil }
+        guard let source = artworkImage ?? UIImage(named: "background") else {
+            return nil
+        }
 
-        // Watch Now Playing drops the whole item if artwork is huge, wide-gamut,
-        // or the request handler returns a different size than asked.
-        let canvas = CGSize(width: 300, height: 300)
+        // Keep the image small and predictable for Watch / Lock Screen.
+        let canvas = CGSize(width: 600, height: 600)
+
         let rendered = UIGraphicsImageRenderer(size: canvas).image { _ in
-            let src = source.size
-            guard src.width > 0, src.height > 0 else { return }
-            let scale = max(canvas.width / src.width, canvas.height / src.height)
-            let scaled = CGSize(width: src.width * scale, height: src.height * scale)
-            let origin = CGPoint(x: (canvas.width - scaled.width) / 2,
-                                 y: (canvas.height - scaled.height) / 2)
-            source.draw(in: CGRect(origin: origin, size: scaled))
-        }
-        let jpegImage: UIImage
-        if let data = rendered.jpegData(compressionQuality: 0.82),
-           let decoded = UIImage(data: data) {
-            jpegImage = decoded
-        } else {
-            jpegImage = rendered
-        }
-        let frozen = jpegImage
+            let sourceSize = source.size
 
-        // init(image:) is deprecated. Use the request-handler initializer so
-        // Watch/Lock Screen can ask for the exact artwork size it needs.
-        return MPMediaItemArtwork(boundsSize: canvas) { requested in
-            let width = requested.width > 0 ? requested.width : canvas.width
-            let height = requested.height > 0 ? requested.height : canvas.height
+            guard sourceSize.width > 0,
+                  sourceSize.height > 0 else {
+                return
+            }
+
+            let scale = max(
+                canvas.width / sourceSize.width,
+                canvas.height / sourceSize.height
+            )
+
+            let scaledSize = CGSize(
+                width: sourceSize.width * scale,
+                height: sourceSize.height * scale
+            )
+
+            let origin = CGPoint(
+                x: (canvas.width - scaledSize.width) / 2,
+                y: (canvas.height - scaledSize.height) / 2
+            )
+
+            source.draw(
+                in: CGRect(
+                    origin: origin,
+                    size: scaledSize
+                )
+            )
+        }
+
+        let artworkImage: UIImage
+
+        if let jpeg = rendered.jpegData(compressionQuality: 0.85),
+           let decoded = UIImage(data: jpeg) {
+            artworkImage = decoded
+        } else {
+            artworkImage = rendered
+        }
+
+        let frozenImage = artworkImage
+        // IMPORTANT:
+        // Always use the request-handler initializer. The old
+        // MPMediaItemArtwork(image:) initializer is deprecated.
+        return MPMediaItemArtwork(
+            boundsSize: canvas
+        ) { requestedSize in
+
+            guard requestedSize.width > 0,
+                  requestedSize.height > 0 else {
+                return frozenImage
+            }
+
+            let requested = CGSize(
+                width: min(requestedSize.width, 600),
+                height: min(requestedSize.height, 600)
+            )
 
             return UIGraphicsImageRenderer(
-                size: CGSize(width: width, height: height)
+                size: requested
             ).image { _ in
-                frozen.draw(
+
+                let scale = max(
+                    requested.width / frozenImage.size.width,
+                    requested.height / frozenImage.size.height
+                )
+
+                let scaledSize = CGSize(
+                    width: frozenImage.size.width * scale,
+                    height: frozenImage.size.height * scale
+                )
+
+                let origin = CGPoint(
+                    x: (requested.width - scaledSize.width) / 2,
+                    y: (requested.height - scaledSize.height) / 2
+                )
+
+                frozenImage.draw(
                     in: CGRect(
-                        x: 0,
-                        y: 0,
-                        width: width,
-                        height: height
+                        origin: origin,
+                        size: scaledSize
                     )
                 )
             }
@@ -656,70 +699,3 @@ private extension String {
 typealias UIImage = NSObject
 #endif
 
-// MARK: - iOS 27+ Now Playing framework (Xcode 27 / NowPlaying.framework)
-
-#if canImport(NowPlaying)
-@available(iOS 27.0, tvOS 27.0, *)
-@Observable
-@MainActor
-final class ModernNowPlayingBridge: MediaSessionRepresentable {
-    let id: String = "bootie-mashup-radio"
-    var songTitle: String = "Bootie Mashup Radio"
-    var artistName: String = "Bootie Mashup Radio"
-    var isPlaying: Bool = false
-    var artworkJPEG: Data?
-    var artworkId: String = "default"
-    private var session: MediaSession<ModernNowPlayingBridge>?
-
-    var content: (any MediaContentRepresentable)? {
-        let art: Artwork? = {
-            guard let jpeg = artworkJPEG, !jpeg.isEmpty else { return nil }
-            let captured = jpeg
-            return Artwork(id: artworkId) { _ in
-                try ArtworkRepresentation(data: captured)
-            }
-        }()
-        return MusicContent(
-            id: artworkId,
-            songTitle: songTitle,
-            artistName: artistName,
-            albumName: "Bootie Mashup Radio",
-            type: .audio,
-            duration: .live,
-            artwork: art
-        )
-    }
-
-    var playbackSnapshot: MediaPlaybackSnapshot? {
-        MediaPlaybackSnapshot(
-            state: isPlaying ? .playing() : .paused
-        )
-    }
-
-    var commands: [MediaCommand] {
-        [
-            .play { AudioPlayerManager.shared.play() },
-            .pause { AudioPlayerManager.shared.pause() }
-        ]
-    }
-
-    func activate() {
-        Task { @MainActor in
-            if session == nil {
-                let session = MediaSession(self)
-                self.session = session
-            }
-            try? await session?.requestToBecomeApplicationPrimary()
-        }
-    }
-
-    func update(title: String, artist: String, isPlaying: Bool, artworkJPEG: Data?, artworkId: String) {
-        self.songTitle = title
-        self.artistName = artist
-        self.isPlaying = isPlaying
-        self.artworkJPEG = artworkJPEG
-        self.artworkId = artworkId
-        activate()
-    }
-}
-#endif
