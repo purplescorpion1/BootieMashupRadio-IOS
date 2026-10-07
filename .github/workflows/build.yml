@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       # --- 1. iOS Simulator Build ---
       - name: Build iOS Simulator Application
@@ -90,25 +90,25 @@ jobs:
 
       # --- Upload Artifacts ---
       - name: Upload iOS Simulator App (.zip)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: BootieMashupRadio-iOS-Simulator
           path: build/BootieMashupRadio-iOS-Simulator.zip
 
       - name: Upload iOS Device App (.ipa)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: BootieMashupRadio-iOS-Device
           path: build/BootieMashupRadio-iOS-Device.ipa
 
       - name: Upload tvOS Simulator App (.zip)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: BootieMashupRadio-tvOS-Simulator
           path: build/BootieMashupRadio-tvOS-Simulator.zip
 
       - name: Upload tvOS Device App (.ipa)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: BootieMashupRadio-tvOS-Device
           path: build/BootieMashupRadio-tvOS-Device.ipa
