@@ -429,6 +429,13 @@ public final class AudioPlayerManager: ObservableObject {
         let center = MPNowPlayingInfoCenter.default()
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
+
+        #if DEBUG
+        print("NowPlaying ->", info[MPMediaItemPropertyTitle] ?? "nil",
+              "|", info[MPMediaItemPropertyArtist] ?? "nil",
+              "| artwork:", info[MPMediaItemPropertyArtwork] != nil,
+              "| rate:", info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil")
+        #endif
     }
 
     private func makeNowPlayingDictionary() -> [String: Any] {
@@ -537,21 +544,44 @@ final class StreamMetadataHook {
         timer = nil
     }
 
-    func fetchNow() {
-        var request = URLRequest(url: AudioPlayerManager.nowPlayingAPIURL)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+    /// Many hosts (RadioBoss included) serve an HTML page instead of JSON to
+    /// requests that don't look like a browser (default CFNetwork User-Agent,
+    /// no Referer) or that come from a datacentre / emulator IP.
+    private static let browserUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 
-        session.dataTask(with: request) { [weak self] data, _, error in
-            guard let self, let data, error == nil else {
-                if let error { print("Now playing request: \(error.localizedDescription)") }
+    private func makeRequest(url: URL, accept: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        request.setValue(Self.browserUA, forHTTPHeaderField: "User-Agent")
+        request.setValue("https://c7.radioboss.fm/", forHTTPHeaderField: "Referer")
+        request.setValue("en-GB,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        return request
+    }
+
+    func fetchNow() {
+        let request = makeRequest(url: AudioPlayerManager.nowPlayingAPIURL, accept: "application/json, text/plain, */*")
+
+        session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
+            if let error {
+                print("Now playing request failed: \(error.localizedDescription)")
                 return
             }
+            guard let data else { return }
+
+            let http = response as? HTTPURLResponse
+            let status = http?.statusCode ?? -1
+            let type = http?.value(forHTTPHeaderField: "Content-Type") ?? "?"
+
             do {
                 let json = try JSONDecoder().decode(RadioBossNowPlaying.self, from: data)
                 DispatchQueue.main.async { self.onUpdate?(json) }
             } catch {
-                print("Now playing JSON: \(error)")
+                let body = String(decoding: data.prefix(300), as: UTF8.self)
+                    .replacingOccurrences(of: "\n", with: " ")
+                print("Now playing: not JSON. HTTP \(status), \(type), final URL \(http?.url?.absoluteString ?? "?")")
+                print("Now playing body starts: \(body)")
             }
         }.resume()
     }
@@ -560,8 +590,7 @@ final class StreamMetadataHook {
         guard !artworkInFlight else { return }
         let encoded = cacheBuster.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "0"
         guard let url = URL(string: "\(AudioPlayerManager.artworkURLString)?_=\(encoded)") else { return }
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let request = makeRequest(url: url, accept: "image/jpeg,image/*;q=0.8,*/*;q=0.5")
         artworkInFlight = true
 
         session.dataTask(with: request) { [weak self] data, response, error in
